@@ -1,0 +1,941 @@
+
+# It is also a good practice to draw a barplot representing the data:
+library(ggplot2)
+
+ggplot(dat) +
+  aes(x = Species, fill = size) +
+  geom_bar() +
+  scale_fill_hue() +
+  theme_minimal()
+
+
+# Chi-square test of independence
+# For this example, we are going to test in R if there is a relationship
+# between the variables Species and size. For this, the chisq.test()
+# function is used:
+  
+test <- chisq.test(table(dat$Species, dat$size))
+test
+
+
+test$statistic # test statistic
+
+test$p.value # p-value
+
+
+
+
+
+#=====================================================================
+#LOGISTIC REGRESSION CLASSIFICATION
+
+projo=read.csv("projo.csv",header=T)
+
+str(projo)
+table(projo$SATISFIED)
+
+# Install and load caTools package 
+install.packages("caTools")
+library(caTools)
+
+# Randomly split data
+set.seed(88)
+split = sample.split(projo$SATISFIED, SplitRatio = 0.75)
+split
+
+
+# Create training and testing sets
+projoTrain = subset(projo, split == TRUE)
+projoTest = subset(projo, split == FALSE)
+
+nrow(projoTrain)
+nrow(projoTest)
+
+# Logistic Regression Model
+ProjoLog = glm(SATISFIED ~ .,data=projoTrain, family=binomial)
+summary(ProjoLog)
+
+#Prediction
+predictTrain = predict(ProjoLog, type="response")
+summary(predictTrain)
+tapply(predictTrain, projoTrain$SATISFIED, mean)
+
+#Thresholding
+#We can convert the probabilities to predictions using what's called a 
+#threshold value, t. If the probability of YES is greater than this 
+#threshold value, t, we predict SATISFACTION. But if the probability of
+#SATISFACTION is less than the threshold value, t, then we predict NO SATISFACTION
+
+# Confusion matrix for threshold of 0.5
+table(projoTrain$SATISFIED, predictTrain > 0.5)
+
+# Sensitivity= true positives/(true positive + false negative)
+
+# Specificity=true negatives/(true negative + false positives)
+
+
+# Confusion matrix for threshold of 0.7
+table(projoTrain$SATISFIED, predictTrain > 0.7)
+
+# Sensitivity= true positive/(true positive + false negative)
+
+# Specificity=true negative/(true negative + false positives)
+
+
+
+# Confusion matrix for threshold of 0.5
+table(projoTrain$SATISFIED, predictTrain > 0.2)
+
+# Sensitivity= true positives/(true positive + false negative)
+
+# Specificity=true negatives/(true negative + false positives)
+
+
+#We see that by increasing the threshold value, the model's sensitivity
+#decreases and specificity increases while the reverse happens if the 
+#threshold value is decreased. So how to choose the optimum threshold value.
+#Picking a good threshold value is often challenging.A Receiver Operator 
+#Characteristic curve, or ROC curve, can help us decide which value of the
+#threshold is best.
+
+# Install and load ROCR package
+install.packages("ROCR")
+library(ROCR)
+ROCRpred = prediction(predictTrain, projoTrain$SATISFIED)
+
+#We now use the performance function which defines what we'd like to plot
+#on the x and y-axes of our ROC curve.
+# Performance function
+ROCRperf = performance(ROCRpred, "tpr", "fpr")
+
+#Now, we just need to plot the output of the performance function.
+# Plot ROC curve
+plot(ROCRperf)
+
+# Add colors
+plot(ROCRperf, colorize=TRUE)
+
+# Add threshold labels 
+plot(ROCRperf, colorize=TRUE, print.cutoffs.at=seq(0,1,by=0.1), text.adj=c(-0.2,1.7))
+
+
+#Prediction on Test Set
+
+#In this particular example, we used a threshold value of 0.3 and we 
+#obtain the following confusion matrix.
+
+predictTest = predict(ProjoLog, type = "response", newdata = projoTest)
+
+table( projoTest$SATISFIED,predictTest >= 0.3)
+
+# Accuracy=sum(main diagnol values)/total sum
+
+
+#Conclusion
+#The model can accurately identify students satisfied with training.
+#Test set accuracy being equal to % which is greater than our baseline
+#model.
+
+
+
+#=======================================================================
+#SVM CLASSIFICATION
+
+projo=read.csv("projo.csv",header=T)
+
+length(projo$SATISFIED)
+
+set.seed(123)
+train_sample <- sample(291,200)
+project_train <- projo[train_sample, ]
+project_test <- projo[-train_sample, ]
+edit(project_train)
+
+#SVM parameters tuning by giving their range in tune function as
+list(epsilon = seq(0,10,0.05), cost = 2^(2:9)) 
+tune.svm(model)
+
+library(e1071)
+
+model<-svm(SATISFIED~., data = project_train,method = "C-classification", 
+           kernel = "radial",cost = 10, gamma = 0.1)
+summary(model)
+plot(model, project_train, L_explain ~L_ref, slice = 
+       list(L_explain = 3,L_ref = 3))
+
+
+
+
+#Extract data from PDF
+#----------------------------
+install.packages("tabulizer")
+
+
+library(tabulizer)
+library(dplyr)
+
+
+remotes::install_github(c("ropensci/tabulizerjars", "ropensci/tabulizer"), INSTALL_opts = "--no-multiarch", dependencies = c("Depends", "Imports"))
+
+
+R.version
+
+# Extract the table
+out <- extract_tables('MPESA_unlocked.pdf')
+mpesa_df=data.frame(out)
+final <- do.call(rbind, out[-length(out)])
+
+# table headers get extracted as rows with bad formatting. Dump them.
+final <- as.data.frame(final[3:nrow(final), ])
+
+# Column names
+headers <- c('Receipt_No','Completion_Time','Details',
+    'Transaction_Status','Paid_In','Withdrawn','Balance')
+
+# Apply custom column names
+names(out) <- headers
+
+# These dplyr steps are not strictly necessary for dumping to csv, but useful if further data 
+# manipulation in R is required. 
+final <- final %>%
+  # Convert date columns to date objects
+  mutate_each(funs(as.Date(., format='%m/%d/%Y')), Notice.Date, Effective.Date, Received.Date) %>%
+  # Convert No.of.Employees to numeric
+  mutate(No.of.Employees = as.numeric(levels(No.of.Employees)[No.of.Employees]))
+
+# Write final table to disk
+write.csv(final, file='CA_WARN.csv', row.names=FALSE)
+
+
+
+
+#Facet plotting
+#Facet plots of satisfaction and office location
+
+library(ggplot2)
+df1$office_location
+df1$satisfaction
+
+#tabulate the data
+counts=table(df1$satisfaction,df1$office_location)
+
+#transpose the contigency table
+t_counts=t(counts)
+t_counts
+
+#convert contigency into a dataframe 
+facet_data=as.data.frame.matrix(t_counts)
+
+#save it into a csv file, edit and read it back
+write.csv(facet_data,"D:/mydata/facet_data.csv") #use your own file path with foward slash
+facet_data1=read.csv("D:/mydata/facet_data.csv")
+
+#Facet plotting
+require(reshape)
+dat <- melt(facet_data1,id.vars = "office_location")
+ggplot(dat,aes(x=office_location, y = value)) + 
+  facet_wrap(~variable) +
+  geom_bar(aes(fill = dat$office_location), stat = "identity")
+
+
+
+
+#support vector machines
+#Support Vector Machines (SVMs) apply a simple linear method to the data but
+#in a high-dimensional feature space non-linearly related to the input space.
+#Training a SVM for classification, regression or novelty detection involves 
+#solving a quadratic optimization problem.
+ 
+#In classification,support vector machines separate the different classes 
+#of data by a hyperplane corresponding to the decision function.
+#HYPERPLANE is the one with the maximal margin of separation between the two classes
+#both the quadratic programming problem and the final decision function depend
+#only on dot products between patterns. This allows the use of the "kernel trick"
+#and the generalization of this linear algorithm to the nonlinear case.
+#Furthermore, SVMs can also produce class probabilities as output instead of class labels
+#This is equivalent to fitting a logistic regression model to the estimated
+#decision values. To extend the class probabilities to the multi-class case,
+#all binary classifiers class probability  output can be combined
+
+#NOVELTY DETECTION (one-class classification): where essentially an SVM detects outliers in a data set.
+#SVM novelty detection works by creating a spherical decision boundary around 
+# a set of data points by a set of support vectors describing the sphere's boundary.
+
+#REGRESSION: By using a different loss function called the E-insensitive loss function
+#SVMs can also perform regression. This loss function ignores errors that are smaller than a certain
+#threshold thus creating a tube around the true output.
+
+#We can estimate the accuracy of SVM regression by computing the scale parameter
+#of a Laplacian distribution on the residuals , where f(x) is the estimated decision function (Lin and Weng 2004).
+#packages involved: kernlab, mlbench
+#Data in each packages,kernlab:(iris,spam,musk,promotergene), 
+#melbench:(vowel.DNA,BreastCancer, BostonHousing,B3)
+
+
+
+objects()#lists all the objects
+library() #list all packages available
+install.packages("kernlab")
+library("kernlab")
+
+data("iris")
+irismodel <- ksvm(Species ~ ., data = iris,type = "C-bsvc",kernel = "rbfdot",
+kpar = list(sigma = 0.1), C = 10,prob.model = TRUE)
+irismodel
+
+predict(irismodel, iris[c(3, 10, 56, 68,107,120), -5], type = "probabilities")
+predict(irismodel, iris[c(3, 10, 56, 68,107, 120), -5], type = "decision")
+
+ #ksvm allows for the use of any valid user defined kernel function by just defining a function
+ #which takes two vector arguments and returns its Hilbert Space dot product in scalar form.
+k <- function(x, y) {
+(sum(x * y) + 1) * exp(0.001 * sum((x-y)^2))
+}
+
+class(k) <- "kernel"
+data("promotergene")
+gene <- ksvm(Class ~ ., data = promotergene,kernel = k, C = 10, cross = 5)
+gene
+
+##The implementation also includes the following computationally efficiently implemented kernels:
+#Gaussian RBF, polynomial, linear, sigmoid, Laplace, Bessel RBF, spline, and ANOVA RBF
+
+
+x <- rbind(matrix(rnorm(120), 2), matrix(rnorm(120,mean = 3), 2))
+x
+y <- matrix(c(rep(1, 60), rep(-1, 60)))
+y
+svp <- ksvm(x, y, type = "C-svc", kernel = "rbfdot",kpar = list(sigma = 2))
+svp
+
+#A contour plot of the fitted decision values for a simple binary classification problem.
+plot(svp)
+
+#The sample session starts with a C classification task on the iris data, using the radial basis
+#function kernel with fixed hyper-parameters C and gamma:
+
+
+#splitting the data
+set.seed(123)
+length(iris$Species)
+train_sample <- sample(150,100)
+iris_train <- iris[train_sample, ]
+iris_test <- iris[-train_sample, ]
+iris_train
+
+install.packages("e1071")
+library(e1071)
+
+model<-svm(Species~., data = iris_train,method = "C-classification", kernel = "radial",cost = 10, gamma = 0.1)
+summary(model)
+
+plot(model, iris_train, Petal.Width ~Petal.Length, slice = list(Sepal.Width = 3,Sepal.Length = 4))
+
+
+pred <- predict(model, head(iris), decision.values = TRUE)
+attr(pred, "decision.values")
+
+
+tobj <- tune.svm(type ~ ., data = spam_train[1:300,],gamma = 10^(-6:-3),cost = 10^(1:2))
+
+summary(tobj)
+
+plot(tobj, transform.x = log10, xlab = expression(log[10](gamma)),ylab = "C")
+
+bestGamma <- tobj$best.parameters[[1]]
+bestC <- tobj$best.parameters[[2]]
+model <- svm(type ~ ., data = spam_train,cost = bestC, gamma = bestGamma, cross = 10)
+summary(model)
+
+pred <- predict(model, spam_test)
+acc <- table(pred, spam_test$type)
+classAgreement(acc)
+
+pred$diag
+pred$kappa
+pred$rand
+pred$crand
+
+install.packages("klaR")
+library("klaR")
+
+data("B3")
+Bmod <- svmlight(PHASEN ~ ., data = B3,svm.options = "-c 10 -t 2 -g 0.1 -v 0")
+predict(Bmod, B3[c(4, 9, 30, 60, 80, 120),-1])
+
+pred$class
+pred$posterior
+
+
+
+#CONNECT TO DB 
+#------------------------------------
+
+# Load RODBC package
+install.packages("RODBC")
+library(RODBC)
+
+# Create a connection to the database called "channel"
+channel <- odbcConnect("DATABASE", uid="USERNAME", pwd="PASSWORD")
+
+# Query the database and put the results into the data frame
+# "dataframe"
+
+ dataframe <- sqlQuery(channel, "
+ SELECT *
+ FROM
+ SCHEMA.DATATABLE")
+
+# When finished, it's a good idea to close the connection
+odbcClose(channel)
+
+#A couple of comments about this code are in order:
+
+#First, I don’t like the idea of having a password appear, unencrypted, in the R program. One possible solution is to prompt the user for the password before creating the connection:
+
+pswd <- readline("Input Password: ")
+channel <- odbcConnect("DATABASE", uid="USERNAME",  pwd=pswd)
+
+install.packages("ROracle")
+library("ROracle")
+drv<-dbDriver("Oracle")
+con<-dbConnect(drv,"SYSTEM","ROracle123") 
+demodat <- dbGetQuery(con,"select table_name from user_tables")
+
+
+
+
+
+
+
+
+#NAIVE BAYES 
+#Classification method that uses probability to estimate the likelihood that an observation falls into certain categories
+#Classifiers based on Bayesian methods utilize training data to calculate an observed probability of each outcome based on the evidence provided by feature values. When
+#the classifier is later applied to unlabeled data, it uses the observed probabilities to predict the most likely class for the new features.
+#It's a simple idea, but it results in a method that often has results on par with more sophisticated algorithms
+
+#DATA LOADING, INSTALL PACKAGES & DESCREPTIVE STATS
+sms_raw=read.csv('sms_raw.csv',stringsAsFactors = FALSE)
+sms_raw
+
+library(tm)
+#install.packages("tm")#text mining packages 
+#install.packages("SnowballC")
+#install.packages("gmodels")
+
+as.character(sms_raw$sms)
+str(sms_raw$text)
+table(sms_raw$type)
+
+
+#CLEANING AND STANDARDIZING THE DATA
+#corpora (corpus 'singular') are collections of documents containing (natural language) text
+sms_corpus <- VCorpus(VectorSource(sms_raw$text))
+sms_corpus
+print(sms_corpus)
+inspect(sms_corpus[1:2])
+
+as.character(sms_corpus[[1]])
+lapply(sms_corpus[1:2], as.character)
+
+#Convert to lower case
+sms_corpus_clean <- tm_map(sms_corpus,content_transformer(tolower))
+as.character(sms_corpus_clean[[1]])
+
+#Remove numbers
+sms_corpus_clean <- tm_map(sms_corpus_clean, removeNumbers)
+
+#Remove stopwords
+sms_corpus_clean <- tm_map(sms_corpus_clean,removeWords, stopwords())
+
+#Remove punctuation
+sms_corpus_clean <- tm_map(sms_corpus_clean, removePunctuation)
+
+#Stem the document; returns the same vector of terms in its root form
+sms_corpus_clean <- tm_map(sms_corpus_clean, stemDocument)
+
+#Strip whitespace
+sms_corpus_clean <- tm_map(sms_corpus_clean, stripWhitespace)
+
+
+#DATA PREPARATION splitting text documents into words
+
+#1. Creating a DTM sparse matrix, given a tm corpus, involves a single command:
+sms_dtm <- DocumentTermMatrix(sms_corpus_clean)
+sms_dtm
+#Ashortcut to the DTM
+sms_dtm2 <- DocumentTermMatrix(sms_corpus, control = list(tolower = TRUE,removeNumbers = TRUE,stopwords = TRUE,removePunctuation = TRUE,stemming = TRUE))
+sms_dtm2
+
+#if the two sms_dtm are not similar then stopwords must be the problem thus replace it with the following function to correct it.
+stopwords = function(x) { removeWords(x, stopwords()) }
+
+#2. Creating training and test datasets
+sms_dtm_train <- sms_dtm[1:4169, ]
+sms_dtm_test <- sms_dtm[4170:5559, ]
+
+sms_train_labels <- sms_raw[1:4169, ]$type
+sms_test_labels <- sms_raw[4170:5559, ]$type
+
+#To confirm that the subsets are representative of the complete set of SMS data, let's compare the proportion of spam in the training and test data frames:
+prop.table(table(sms_train_labels))
+prop.table(table(sms_test_labels))
+
+#3. Visualizing text data  word clouds
+# Install
+install.packages("tm")  # for text mining
+install.packages("SnowballC") # for text stemming
+install.packages("wordcloud")
+# word-cloud generator 
+install.packages("RColorBrewer") # color palettes
+# Load
+library("tm")
+library("SnowballC")
+library("Wordcloud")
+library("RColorBrewer")
+
+
+wordcloud(sms_corpus_clean, min.freq = 50, random.order = FALSE)
+
+#split for separate visualisations
+spam <- subset(sms_raw, type == "spam")
+ham <- subset(sms_raw, type == "ham")
+wordcloud(spam$text, max.words = 40, scale = c(3, 0.5))
+wordcloud(ham$text, max.words = 40, scale = c(3, 0.5))
+
+
+#4. Creating indicator features for frequent words
+findFreqTerms(sms_dtm_train, 5)
+
+sms_freq_words <- findFreqTerms(sms_dtm_train, 5)
+
+str(sms_freq_words)
+
+#Create train and test foe freq words
+sms_dtm_freq_train<- sms_dtm_train[ , sms_freq_words]
+sms_dtm_freq_test <- sms_dtm_test[ , sms_freq_words]
+
+convert_counts <- function(x) {
+x <- ifelse(x > 0, "Yes", "No")
+}
+
+sms_train <- apply(sms_dtm_freq_train, MARGIN = 2,convert_counts)
+sms_test <- apply(sms_dtm_freq_test, MARGIN = 2,convert_counts)
+
+
+
+#TRAINING A MODEL ON THE DATA
+sms_classifier <- naiveBayes(sms_train, sms_train_labels)
+
+
+
+#EVALUATING MODEL PERFORMANCE
+#Prediction
+sms_test_pred <- predict(sms_classifier, sms_test)
+
+#Check the false posiutives and negatives
+library(gmodels)
+CrossTable(sms_test_pred, sms_test_labels,prop.chisq = FALSE, prop.t = FALSE,dnn = c('predicted', 'actual'))
+
+
+#IMPROVING MODEL PERFORMANCE
+#it does not mean that every message with this word should be classified as spam.
+#We'll build a Naive Bayes model as done earlier, but this time set laplace = 1:
+
+sms_classifier2 <- naiveBayes(sms_train, sms_train_labels,laplace = 1)
+
+sms_test_pred2 <- predict(sms_classifier2, sms_test)
+
+CrossTable(sms_test_pred2, sms_test_labels,prop.chisq = FALSE, prop.t = FALSE, prop.r = FALSE,dnn = c('predicted', 'actual'))
+
+
+
+
+
+#LINEAR REGRESSION: 
+
+#rocket launch data
+launch <- read.csv("challenger.csv")
+
+#Assume that our shuttle launch data is stored in a data frame named launch, the
+#independent variable x is temperature, and the dependent variable y is distress_ct.
+#We can then use R's cov() and var() functions to estimate b:
+
+b <- cov(launch$temperature, launch$distress_ct) /var(launch$temperature)
+
+#From here we can estimate a using the mean() function:
+a <- mean(launch$distress_ct) - b * mean(launch$temperature)
+a
+
+#correlations
+r<- cov(launch$temperature, launch$distress_ct) /(sd(launch$temperature) * sd(launch$distress_ct))
+r
+#alternatively
+r=cor(launch$temperature, launch$distress_ct)
+
+#A basic regression function
+reg <- function(y, x) {
+x <- as.matrix(x)
+x <- cbind(Intercept = 1, x)
+b <- solve(t(x) %*% x) %*% t(x) %*% y
+colnames(b) <- "estimate"
+print(b)
+}
+
+#apply the reg function to the data
+reg(y = launch$distress_ct, x = launch[2]) #simple linear regression
+
+#multiple linear regression
+reg(y = launch$distress_ct, x = launch[2:4])
+
+
+
+#PREDICTING MEDICAL EXPENSES USING LINEAR REGRESSION
+#COLLECTING DATA
+insurance <- read.csv("insurance.csv", stringsAsFactors = TRUE)
+summary(insurance$expenses)
+hist(insurance$expenses)
+table(insurance$region)
+
+#EXPLORING RELATIONSHIPS AMONG FEATURES – the correlation matrix
+cor(insurance[c("age", "bmi", "children", "expenses")])
+
+#Visualizing relationships among features – the scatterplot matrix
+pairs(insurance[c("age", "bmi", "children", "expenses")])
+pairs.panels(insurance[c("age", "bmi", "children", "expenses")])
+
+
+#TRAINING A MODEL ON THE DATA
+ins_model <- lm(expenses ~ age + children + bmi + sex +smoker + region, data = insurance)
+
+
+#EVALUATING MODEL PERFORMANCE
+summary(ins_model)
+
+#IMPROVING MODEL PERFORMANCE
+#Model specification – adding non-linear relationships
+#To summarised the improvements we :
+#Added a non-linear term for age
+#Created an indicator for obesity
+#Specified an interaction between obesity and smoking
+
+insurance$bmi30 <- ifelse(insurance$bmi >= 30, 1, 0)
+ins_model2 <- lm(expenses ~ age + age2 + children + bmi + sex + bmi30*smoker + region, data = insurance)
+summary(ins_model2)
+
+
+
+
+
+
+
+#KNN ALGORITHM  FOR CLASSIFICATION OF BREAST CANCER 
+
+#Loading the data and install packages
+wbcd=read.csv('wbcd.csv',header=T)
+library(class)
+library(gmodels)
+
+
+#remove the ID
+wbcd_raw=wbcd[,-1]
+
+
+#DATA EXPLORATION AND PREPARATION
+#inpecting the data
+str(wbcd_raw)
+attach(wbcd_raw)
+
+#frequecy analysis
+table(wbcd$target)
+
+#convert categories to factors
+
+
+str(wbcd$target)
+
+#proportion analysis
+round(prop.table(table(wbcd$target))*100,digits=1)
+
+#descriptives stats
+summary(wbcd_raw[2:31])
+
+#normalizing the data since there is a very large spread and it will cause bias in classification.
+normalize=function(x){
+  return((x-min(x))/(min(x)-max(x)))
+}
+wbcd_n=-as.data.frame(lapply(wbcd_raw[2:31], normalize))
+
+
+#test to see if the data is normalized
+summary(wbcd_n)
+
+#///////////////////////////////////////////////////////////////////
+
+#--------------------------------------------------------------------------
+#let's consider randomly splitting a dataset
+set.seed(123)#parameter for randomness
+train_sample=sample(569,469)#random sampling
+wbcd_train=wbcd_n[train_sample,]#splitting for x_train
+wbcd_test=wbcd_n[-train_sample,]#splitting for the x_test
+#-------------------------------------------------------------------------
+
+#create train and test labels of the target variable diaagnosis (y_train and y_test)
+wbcd_train_labels <- wbcd_train["target"]
+edit(wbcd_train_labels)
+wbcd_test_labels <- wbcd_test["target"]
+wbcd_test_labels
+
+length(wbcd_train)
+
+
+#TRAINING A MODEL ON THE DATA
+
+library(class)
+wbcd_test_pred <-knn(train=wbcd_train,test=wbcd_test,
+                     cl=wbcd_train_labels, k=21)
+
+wbcd_test_pred
+
+#EVALUATING MODEL PERFORMANCE 
+library(gmodels)
+CrossTable(wbcd_test_pred, wbcd_test_labels,prop.chisq = FALSE, 
+           prop.t = FALSE,dnn = c('predicted', 'actual'))
+
+
+CrossTable(wbcd_test_pred,wbcd_test_labels,)
+#A total of 2 out of 100, or 2 percent of masses were incorrectly classified by the k-NN
+#approach. While 98 percent accuracy seems impressive for a few lines of R code,
+#we might try another iteration of the model to see whether we can improve the
+#performance and reduce the number of values that have been incorrectly classified,
+#particularly because the errors were dangerous false negatives.
+
+
+#IMPROVING MODEL PERFORMANCE
+#Transforming the numeric values by rescaling with z-score
+wbcd_z <- as.data.frame(scale(wbcd[-(1:2)]))
+summary(wbcd_z$area_mean)
+
+#The mean of a z-score standardized variable should always be zero, and the range
+#should be fairly compact. A z-score greater than 3 or less than -3 indicates an
+#extremely rare value. With this in mind, the transformation seems to have worked.
+#As we had done earlier, we need to divide the data into training and test sets, and
+#then classify the test instances using the knn() function. We'll then compare the predicted labels to the actual labels using CrossTable():
+
+#THE BEST WAY TO SPLIT THE DATA IS RANDOMLY
+set.seed(123)
+train_sample=sample(569,469)
+wbcd_train=wbcd_z[train_sample,]
+wbcd_test=wbcd_z[-train_sample,]
+wbcd_train_labels <- wbcd[train_sample, 2]
+wbcd_test_labels <- wbcd[-train_sample, 2]
+
+#THE FOLLOWING WAY WITHOUT RANDOMIZATION HAS HIGH ACCURACY BUT MAY ENCOUTER BIAS
+#IF THE DATA WAS ORDERED IN SOME WAY.
+wbcd_train <- wbcd_z[1:469, ]
+wbcd_test <- wbcd_z[470:569, ]
+wbcd_train_labels <- wbcd[1:469, 2]
+wbcd_test_labels <- wbcd[470:569, 2]
+
+
+#Use the k value that gives the highest sum of true positive and negative values
+wbcd_test_pred <- knn(train = wbcd_train, test = wbcd_test,cl = wbcd_train_labels, k = 12)
+CrossTable(x = wbcd_test_labels, y = wbcd_test_pred, prop.chisq = FALSE)
+
+
+
+
+#BLOCKCHAIN CODE
+#-------------------------------------------------------------------------------------------------
+block_example <- list(index = 1,
+                      timestamp = "2018-01-05 17.00 MST",
+                      data = "some data",
+                      previous_hash = 0,
+                      proof = 9,
+                      new_hash = NULL)
+
+library("digest")
+
+digest("Stata" ,"sha256") # first try
+digest("R", "sha256") # second try
+
+#Function that creates a hashed "block"
+hash_block <- function(block){
+  block$new_hash <- digest(c(block$index,
+                             block$timestamp,
+                             block$data,
+                             block$previous_hash), "sha256")
+  return(block)
+}
+
+### Simple Proof of Work Alogrithm
+proof_of_work <- function(last_proof){
+  proof <- last_proof + 1
+  
+  # Increment the proof number until a number is found that is divisable by 99 and by the proof of the previous block
+  while (!(proof %% 99 == 0 & proof %% last_proof == 0 )){
+    proof <- proof + 1
+  }
+  
+  return(proof)
+}
+
+
+#A function that takes the previous block and normally some data (in our case the data is a string indicating which block in the chain it is)
+gen_new_block <- function(previous_block){
+  
+  #Proof-of-Work
+  new_proof <- proof_of_work(previous_block$proof)
+  
+  #Create new Block
+  new_block <- list(index = previous_block$index + 1,
+                    timestamp = Sys.time(),
+                    data = paste0("this is block ", previous_block$index +1),
+                    previous_hash = previous_block$new_hash,
+                    proof = new_proof)
+  
+  #Hash the new Block
+  new_block_hashed <- hash_block(new_block)
+  
+  return(new_block_hashed)
+}
+
+
+# Define Genesis Block (index 1 and arbitrary previous hash)
+block_genesis <-  list(index = 1,
+                       timestamp = Sys.time(),
+                       data = "Genesis Block",
+                       previous_hash = "0",
+                       proof = 1)
+
+
+
+#Building the Blockchain
+#Now you can start building the blockchain. You start with the Genesis block and then add a few blocks using a loop.
+
+blockchain <- list(block_genesis)
+previous_block <- blockchain[[1]]
+
+# How many blocks should we add to the chain after the genesis block
+num_of_blocks_to_add <- 5
+
+# Add blocks to the chain
+for (i in 1: num_of_blocks_to_add){
+  block_to_add <- gen_new_block(previous_block) 
+  blockchain[i+1] <- list(block_to_add)
+  previous_block <- block_to_add
+  
+  print(cat(paste0("Block ", block_to_add$index, " has been added", "\n",
+                   "\t", "Proof: ", block_to_add$proof, "\n",
+                   "\t", "Hash: ", block_to_add$new_hash)))
+}
+
+  
+blockchain[[5]]
+  
+  
+
+
+#XGBOOST
+#--------------------------------------------------------------------------------------------------------------
+# Classification of users based on satisfaction with XGBoost Model in R
+# The process shall entail
+# 1.Preparing data
+# 2.Defining the model
+# 3.Predicting test data
+
+# We'll start by loading the required packages.
+
+library(xgboost)
+library(caret) 
+
+# Loading and Preparing data
+df=read.csv("Gvault_survey_encoded.csv",header = T)
+ 
+#Drop irrelevant columns
+df=subset(df, select=-c(Respondent.ID,Collector.ID,Start.Date,
+         End.Date,explain_training_effectiveness,explain_support,
+         explain_complete_without_help,explain_easy_access_documents,
+                             explain_satisfaction,explain_Gvault_efficiency,explain_Gvault_improved,
+                             explain_office_location,explain_job_level) )
+ 
+ 
+ 
+# In this tutorial, use Gvault survey dataset as a given classification problem.
+# First, we'll split the dataset into the train and test parts.
+# Here, I'll use 10 percent of the dataset as test data.
+
+indexes = sample(2,nrow(df),replace = T,prob = c(0.9,0.1))
+train=df[indexes==1,]
+test=df[indexes==2,]
+
+dim(train)
+dim(test)
+
+# Next, we'll separate x - feature and y - label parts. Note, the training 
+# x data should be matrix type to use in xgboost model. Thus, we'll convert x
+# parts into the matrix type.
+
+train_x = data.matrix(train.Hitters[,-19])
+train_y =train.Hitters[,19]
+train_x[1:5,]
+train_y[1:5]
+
+test_x = data.matrix(test.Hitters[,-19])
+test_y = test.Hitters[,19]
+
+# Here, you may know that 4 is the number of levels in the satisfaction column
+# in the iris data frame. Next, we need to convert the train and test data into xgb matrix type.
+
+xgb_train= xgb.DMatrix(data=train_x, label=train_y)
+xgb_train
+xgb_test = xgb.DMatrix(data=test_x, label=test_y)
+xgb_test
+
+# Defining the model
+
+# We can define the xgboost model with xgboost function with changing some of the parameters. Note that xgboost is a training function, thus we need to include the train data too. Once we run the function, it fits the model with training data.
+
+xgbc = xgboost(data=xgb_train, max.depth=3, nrounds=50)
+
+print(xgbc)
+
+# Predicting test data
+# The model is ready and we can predict our test data.
+
+pred = predict(xgbc, xgb_test)
+print(pred)
+
+
+
+# Now, we'll convert the result into factor level type.
+
+pred[(pred>4)] = 4
+pred_y = as.factor((levels(test_y))[round(pred)])
+print(pred_y)
+
+# We'll check the prediction accuracy with a confusion matrix.
+table(test_y)
+cm = confusionMatrix(test_y, pred_y)
+print(cm)
+
+# We can compare the test with original values.
+
+result = cbind(orig=as.character(test_y),
+               factor=as.factor(test_y),
+               pred=pred,
+               rounded=round(pred),
+               pred=as.character(levels(test_y))[round(pred)])
+
+print(data.frame(result))
+
+
+
+
+
+
+
+
+
+
